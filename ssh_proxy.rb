@@ -2,37 +2,41 @@
 
 require 'open3'
 
-$git_log = File.open('git.log', 'ab')
+class GitLog
+  def self.log(type, str)
+    type = type.to_s.upcase
 
-def git_log(type, str)
-  type = type.to_s.upcase
+    str.to_s.each_line do |line|
+      target.write type
+      target.write ' '
+      target.write line
 
-  str.to_s.each_line do |line|
-    $git_log.write type
-    $git_log.write ' '
-    $git_log.write line
-
-    unless line.to_s.end_with?("\n")
-      $git_log.write " NOBREAK" if type.start_with?('STD')
-      $git_log.write "\n"
+      unless line.to_s.end_with?("\n")
+        target.write " NOBREAK" if type.start_with?('STD')
+        target.write "\n"
+      end
     end
+    target.flush
   end
-  $git_log.flush
+
+  def self.target
+    @target ||= File.open('git.log', 'ab')
+  end
 end
 
 def read_from_io(input, output, name)
   begin
     block = input.read_nonblock(1024)
-    git_log(name, block)
+    GitLog.log(name, block)
     output.print block
     output.flush
   rescue EOFError
     input.close
-    git_log(:error, "#{name} EOF")
+    GitLog.log(:error, "#{name} EOF")
   end
 end
 
-git_log(:cmd, ['ssh', '-x', *ARGV].join(' '))
+GitLog.log(:cmd, ['ssh', '-x', *ARGV].join(' '))
 Open3.popen3('ssh', '-x', *ARGV) do |stdin, stdout, stderr, wait_thr|
   i = 0
   while wait_thr.alive? && i < 100 do
@@ -47,4 +51,5 @@ Open3.popen3('ssh', '-x', *ARGV) do |stdin, stdout, stderr, wait_thr|
 
     i += 1
   end
+  GitLog.log(:sys, wait_thr.value)
 end
