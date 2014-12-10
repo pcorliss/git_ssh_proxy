@@ -37,6 +37,7 @@ def read_from_io(input, output, name)
 end
 
 GitLog.log(:cmd, ['ssh', '-x', *ARGV].join(' '))
+
 Open3.popen3('ssh', '-x', *ARGV) do |stdin, stdout, stderr, wait_thr|
   i = 0
   while wait_thr.alive? && i < 100 do
