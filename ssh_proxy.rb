@@ -21,16 +21,15 @@ def git_log(type, str)
 end
 
 def read_from_io(input, output, name)
-  block = nil
   begin
     block = input.read_nonblock(1024)
+    git_log(name, block)
+    output.print block
+    output.flush
   rescue EOFError
     input.close
     git_log(:error, "#{name} EOF")
   end
-  git_log(name, block)
-  output.print block
-  output.flush
 end
 
 git_log(:cmd, ['ssh', '-x', *ARGV].join(' '))
