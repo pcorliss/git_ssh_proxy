@@ -20,6 +20,19 @@ def git_log(type, str)
   $git_log.flush
 end
 
+def read_from_io(input, output, name)
+  block = nil
+  begin
+    block = input.read_nonblock(1024)
+  rescue EOFError
+    input.close
+    git_log(:error, "#{name} EOF")
+  end
+  git_log(name, block)
+  output.print block
+  output.flush
+end
+
 git_log(:cmd, ['ssh', '-x', *ARGV].join(' '))
 Open3.popen3('ssh', '-x', *ARGV) do |stdin, stdout, stderr, wait_thr|
   i = 0
@@ -27,44 +40,10 @@ Open3.popen3('ssh', '-x', *ARGV) do |stdin, stdout, stderr, wait_thr|
     std_collection = [$stdin, stdout, stderr].reject(&:closed?)
     readers, writers, errors = IO.select(std_collection, [], [], 1)
 
-    if readers && readers.include?($stdin)
-      block = nil
-      begin
-        block = $stdin.read_nonblock(1024)
-      rescue EOFError
-        block = $stdin.read
-        $stdin.close
-        git_log(:error, "STDIN EOF: #{block} #{block.class} #{block.length}")
-      end
-      git_log(:stdin, block)
-      stdin.print block
-      stdin.flush
-    end
-
-    if readers && readers.include?(stdout)
-      block = nil
-      begin
-        block = stdout.read_nonblock(1024)
-      rescue EOFError
-        block = stdout.read
-        git_log(:error, "STDOUT EOF: #{block}")
-      end
-      git_log(:stdout, block)
-      $stdout.print block
-      $stdout.flush
-    end
-
-    if readers && readers.include?(stderr)
-      block = nil
-      begin
-        block = stderr.read_nonblock(1024)
-      rescue EOFError
-        block = stderr.read
-        git_log(:error, "STDERR EOF: #{block}")
-      end
-      git_log(:stderr, block)
-      $stderr.print block
-      $stderr.flush
+    if readers
+      read_from_io($stdin, stdin, :stdin) if readers.include? $stdin
+      read_from_io(stdout, $stdout, :stdout) if readers.include? stdout
+      read_from_io(stderr, $stderr, :stderr) if readers.include? stderr
     end
 
     i += 1
